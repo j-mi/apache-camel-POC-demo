@@ -1,6 +1,6 @@
-# Apache Camel Weather POC
+# Apache Camel Weather Location POC
 
-A small Apache Camel integration built with the **Karavan** VS Code extension and run with **Camel JBang**. It exposes `POST /process`, validates the JSON input, enriches it with a `requestId` and timestamp, calls the open [open-meteo](https://api.open-meteo.com/) weather API, and returns a combined JSON response.
+A small Apache Camel integration built with the **Karavan** VS Code extension and run with **Camel JBang**. It exposes `POST /process`, validates the JSON input, enriches it with a `requestId` and timestamp, **geocodes the city via [Nominatim](https://nominatim.openstreetmap.org/) (OpenStreetMap)** to get its latitude/longitude, calls the open [open-meteo](https://api.open-meteo.com/) weather API, and returns a combined JSON response with **both the location coordinates and the current weather**.
 
 ## Architecture (one diagram)
 
@@ -9,12 +9,12 @@ client ──POST /process──▶ Camel REST DSL
                           │
                           ├─ validate (name & city not empty) ──▶ 400 on failure
                           ├─ add requestId + timestamp + log
-                          ├─ lookup city → (latitude, longitude)
+                          ├─ HTTP GET nominatim.openstreetmap.org/search → (lat, lon)
                           ├─ HTTP GET open-meteo /v1/forecast
                           └─ build response JSON ──▶ client
 ```
 
-Six supported cities are hardcoded (Helsinki, Turku, Tampere, Oulu, Espoo, Vantaa). Unknown cities fall back to Helsinki coordinates with a warning log.
+City → coordinates is resolved via [Nominatim](https://nominatim.openstreetmap.org/) (OpenStreetMap's free geocoding service — no API key). If Nominatim returns no result or the call fails, the route falls back to Helsinki coordinates with a warning log. Per [Nominatim's usage policy](https://operations.osmfoundation.org/policies/nominatim/) the route sends a `User-Agent` identifying this app; for heavy usage you'd run your own Nominatim instance.
 
 ## Files
 
@@ -135,14 +135,14 @@ The app exposes a small "mock DB" so you can demo gated access:
 |---|---|---|
 | `/users` | POST | Append `{name, city}` as one line to `data/users.jsonl`. |
 | `/users` | GET | Return the current contents as a JSON array. |
-| `/process` | POST | Weather lookup (existing behaviour). When `JSONMOCKDB=true`, the (name, city) must already be in the file or you get a `404` with a hint. |
+| `/process` | POST | Geocode the city and return its `latitude`/`longitude` along with the current weather. When `JSONMOCKDB=true`, the (name, city) must already be in the file or you get a `404` with a hint. |
 
-**The `JSONMOCKDB` flag only controls `/process`.** Registrations via `/users` always write to the file regardless; the flag just decides whether `/process` consults that file before fetching weather:
+**The `JSONMOCKDB` flag only controls `/process`.** Registrations via `/users` always write to the file regardless; the flag just decides whether `/process` consults that file before performing the geocode + weather lookup:
 
 | Flag value | `POST /users` | `GET /users` | `POST /process` |
 |---|---|---|---|
-| `false` (default) | writes to `data/users.jsonl` | reads `data/users.jsonl` → JSON array | weather lookup, **ignores** the file |
-| `true` | writes to `data/users.jsonl` | reads `data/users.jsonl` → JSON array | weather lookup, **but first** checks the file; `404` if (name, city) not registered |
+| `false` (default) | writes to `data/users.jsonl` | reads `data/users.jsonl` → JSON array | geocode + weather lookup, **ignores** the file |
+| `true` | writes to `data/users.jsonl` | reads `data/users.jsonl` → JSON array | geocode + weather lookup, **but first** checks the file; `404` if (name, city) not registered |
 
 The gate is driven by a single property, `jsonmockdb`. Default value lives in [application.properties](application.properties). Override it in any of these ways (highest precedence first):
 

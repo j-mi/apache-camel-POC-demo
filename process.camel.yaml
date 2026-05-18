@@ -147,158 +147,69 @@
             uri: direct
             parameters:
               name: build-response
+# -----------------------------------------------------------------------
+# Geocode the city via Nominatim (OpenStreetMap). Falls back to Helsinki
+# coordinates on empty result or any error.
+# -----------------------------------------------------------------------
 - route:
     id: lookup-coords
     from:
-      id: from3f18
-      uri: direct
-      parameters:
-        name: lookup-coords
+      uri: direct:lookup-coords
       steps:
-        - choice:
-            id: choice1566
-            when:
-              - id: whenb148
-                expression:
-                  simple:
-                    id: simple2269
-                    expression: ${exchangeProperty.originalCity.toLowerCase()} == 'helsinki'
+        - doTry:
+            steps:
+              - removeHeaders:
+                  pattern: "CamelHttp*"
+              - setHeader:
+                  name: CamelHttpMethod
+                  constant: GET
+              - setHeader:
+                  name: User-Agent
+                  constant: "camel-weather-poc/1.0 (https://github.com/j-mi/apache-camel-POC-demo)"
+              - setBody:
+                  constant: ""
+              - toD:
+                  uri: "https://nominatim.openstreetmap.org/search?q=${exchangeProperty.originalCity}&format=json&limit=1&bridgeEndpoint=true"
+              - unmarshal:
+                  json:
+                    library: Jackson
+                    useList: true
+              - choice:
+                  when:
+                    - simple: "${body.size()} > 0"
+                      steps:
+                        - setProperty:
+                            name: latitude
+                            simple: "${body[0][lat]}"
+                        - setProperty:
+                            name: longitude
+                            simple: "${body[0][lon]}"
+                        - log:
+                            message: "Nominatim: '${exchangeProperty.originalCity}' -> lat=${exchangeProperty.latitude} lon=${exchangeProperty.longitude}"
+                  otherwise:
+                    steps:
+                      - log:
+                          loggingLevel: WARN
+                          message: "Nominatim: no result for '${exchangeProperty.originalCity}', defaulting to Helsinki"
+                      - setProperty:
+                          name: latitude
+                          constant: "60.1699"
+                      - setProperty:
+                          name: longitude
+                          constant: "24.9384"
+            doCatch:
+              - exception:
+                  - java.lang.Exception
                 steps:
+                  - log:
+                      loggingLevel: WARN
+                      message: "Nominatim call failed (${exception.message}), defaulting to Helsinki"
                   - setProperty:
-                      id: setPropertydbec
                       name: latitude
-                      expression:
-                        constant:
-                          id: constant6004
-                          expression: "60.1699"
+                      constant: "60.1699"
                   - setProperty:
-                      id: setPropertydb8e
                       name: longitude
-                      expression:
-                        constant:
-                          id: constant8847
-                          expression: "24.9384"
-              - id: whenb5b6
-                expression:
-                  simple:
-                    id: simple32b6
-                    expression: ${exchangeProperty.originalCity.toLowerCase()} == 'turku'
-                steps:
-                  - setProperty:
-                      id: setPropertyafea
-                      name: latitude
-                      expression:
-                        constant:
-                          id: constant2574
-                          expression: "60.4518"
-                  - setProperty:
-                      id: setProperty9bf3
-                      name: longitude
-                      expression:
-                        constant:
-                          id: constant24bd
-                          expression: "22.2666"
-              - id: when0e1b
-                expression:
-                  simple:
-                    id: simplec76d
-                    expression: ${exchangeProperty.originalCity.toLowerCase()} == 'tampere'
-                steps:
-                  - setProperty:
-                      id: setPropertyeaff
-                      name: latitude
-                      expression:
-                        constant:
-                          id: constant8394
-                          expression: "61.4978"
-                  - setProperty:
-                      id: setProperty9437
-                      name: longitude
-                      expression:
-                        constant:
-                          id: constantfe0c
-                          expression: "23.7610"
-              - id: when9192
-                expression:
-                  simple:
-                    id: simple9d26
-                    expression: ${exchangeProperty.originalCity.toLowerCase()} == 'oulu'
-                steps:
-                  - setProperty:
-                      id: setPropertyf166
-                      name: latitude
-                      expression:
-                        constant:
-                          id: constant9767
-                          expression: "65.0121"
-                  - setProperty:
-                      id: setProperty11e9
-                      name: longitude
-                      expression:
-                        constant:
-                          id: constante7a2
-                          expression: "25.4651"
-              - id: when4a2d
-                expression:
-                  simple:
-                    id: simple561e
-                    expression: ${exchangeProperty.originalCity.toLowerCase()} == 'espoo'
-                steps:
-                  - setProperty:
-                      id: setProperty5046
-                      name: latitude
-                      expression:
-                        constant:
-                          id: constanta07f
-                          expression: "60.2055"
-                  - setProperty:
-                      id: setProperty4936
-                      name: longitude
-                      expression:
-                        constant:
-                          id: constanta9ed
-                          expression: "24.6559"
-              - id: when893e
-                expression:
-                  simple:
-                    id: simple101a
-                    expression: ${exchangeProperty.originalCity.toLowerCase()} == 'vantaa'
-                steps:
-                  - setProperty:
-                      id: setProperty000b
-                      name: latitude
-                      expression:
-                        constant:
-                          id: constant4266
-                          expression: "60.2934"
-                  - setProperty:
-                      id: setProperty11a2
-                      name: longitude
-                      expression:
-                        constant:
-                          id: constant90a6
-                          expression: "25.0378"
-            otherwise:
-              id: otherwise79ed
-              steps:
-                - log:
-                    id: logb9a0
-                    message: Unknown city '${exchangeProperty.originalCity}', defaulting to Helsinki coordinates
-                    loggingLevel: WARN
-                - setProperty:
-                    id: setProperty4cfc
-                    name: latitude
-                    expression:
-                      constant:
-                        id: constantddfc
-                        expression: "60.1699"
-                - setProperty:
-                    id: setProperty2cf9
-                    name: longitude
-                    expression:
-                      constant:
-                        id: constantc0a1
-                        expression: "24.9384"
+                      constant: "24.9384"
 - route:
     id: fetch-weather
     from:
@@ -373,6 +284,8 @@
                   {
                     "name": "${exchangeProperty.originalName}",
                     "city": "${exchangeProperty.originalCity}",
+                    "latitude": ${exchangeProperty.latitude},
+                    "longitude": ${exchangeProperty.longitude},
                     "currentTemperature": ${exchangeProperty.weatherTemp},
                     "time": "${exchangeProperty.weatherTime}",
                     "requestId": "${header.requestId}",
@@ -402,24 +315,13 @@
 - route:
     id: openapi-spec-route
     from:
-      id: from0d61
-      uri: direct
-      parameters:
-        name: openapi-spec
+      uri: direct:openapi-spec
       steps:
         - setHeader:
-            id: setHeader7c1d
             name: Content-Type
-            expression:
-              constant:
-                id: constant52d8
-                expression: application/json
+            constant: application/json
         - setBody:
-            id: setBodybf17
-            expression:
-              simple:
-                id: simple6aa4
-                expression: resource:file:openapi.json
+            simple: "resource:file:openapi.json"
 - route:
     id: swagger-ui-route
     from:
@@ -445,7 +347,7 @@
                   <html lang="en">
                   <head>
                     <meta charset="UTF-8" />
-                    <title>Camel Weather POC — Swagger UI</title>
+                    <title>Camel Weather Location POC — Swagger UI</title>
                     <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
                   </head>
                   <body>

@@ -1,48 +1,43 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Camel Weather POC",
+    "title": "Camel Weather Location POC",
     "version": "1.0.0",
-    "description": "Apache Camel integration. POST /process validates a (name, city), enriches with requestId+timestamp, calls open-meteo, and returns combined weather data. /users is a tiny mock-DB; when the server env var JSONMOCKDB=true, /process refuses (name, city) pairs that haven't been POSTed to /users first."
+    "description": "Apache Camel integration: POST /process returns the current weather plus the geocoded lat/lon for a given (name, city). /users is a tiny mock DB."
   },
   "servers": [
     { "url": "/", "description": "Same origin as the Swagger UI page" }
   ],
   "tags": [
     { "name": "weather",  "description": "Weather lookup" },
-    { "name": "users",    "description": "Mock JSONMOCKDB user registry" },
-    { "name": "platform", "description": "Health, OpenAPI, Swagger UI" }
+    { "name": "users",    "description": "Mock user registry" },
+    { "name": "platform", "description": "Health, OpenAPI" }
   ],
   "paths": {
     "/process": {
       "post": {
         "tags": ["weather"],
-        "summary": "Look up the current weather for a (name, city)",
-        "description": "Validates the input, adds a requestId and timestamp, fetches current weather from api.open-meteo.com, and returns the combined response.",
+        "summary": "Look up current weather + coordinates for a (name, city).",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": { "$ref": "#/components/schemas/WeatherRequest" },
-              "examples": {
-                "turku":      { "value": { "name": "Teemu", "city": "Turku" } },
-                "helsinki":   { "value": { "name": "Anna",  "city": "Helsinki" } },
-                "unknownCity":{ "value": { "name": "Pekka", "city": "Atlantis" } }
-              }
+              "example": { "name": "Teemu", "city": "Turku" }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Weather lookup successful",
+            "description": "Weather + coordinates",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WeatherResponse" } } }
           },
           "400": {
-            "description": "Missing or empty name / city",
+            "description": "Missing name or city",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
           },
           "404": {
-            "description": "User not registered in the mock DB (only when JSONMOCKDB=true on the server)",
+            "description": "User not registered (only when JSONMOCKDB=true)",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
           }
         }
@@ -51,8 +46,7 @@
     "/users": {
       "post": {
         "tags": ["users"],
-        "summary": "Register a (name, city) in the JSONMOCKDB",
-        "description": "Appends one JSON object per line to data/users.jsonl on the server.",
+        "summary": "Register a (name, city).",
         "requestBody": {
           "required": true,
           "content": {
@@ -68,24 +62,21 @@
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserSaved" } } }
           },
           "400": {
-            "description": "Missing or empty name / city",
+            "description": "Missing name or city",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
           }
         }
       },
       "get": {
         "tags": ["users"],
-        "summary": "List registered users",
+        "summary": "List registered users.",
         "responses": {
           "200": {
-            "description": "JSON array of registered users",
+            "description": "JSON array of users",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": { "$ref": "#/components/schemas/User" }
-                },
-                "example": [ { "name": "Teemu", "city": "Turku" }, { "name": "Anna", "city": "Helsinki" } ]
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/User" } },
+                "example": [ { "name": "Teemu", "city": "Turku" } ]
               }
             }
           }
@@ -95,7 +86,7 @@
     "/health": {
       "get": {
         "tags": ["platform"],
-        "summary": "Liveness probe",
+        "summary": "Liveness probe.",
         "responses": {
           "200": {
             "description": "App is up",
@@ -112,11 +103,7 @@
         "required": ["name", "city"],
         "properties": {
           "name": { "type": "string", "example": "Teemu" },
-          "city": {
-            "type": "string",
-            "example": "Turku",
-            "description": "One of Helsinki, Turku, Tampere, Oulu, Espoo, Vantaa. Others fall back to Helsinki coordinates."
-          }
+          "city": { "type": "string", "example": "Turku" }
         }
       },
       "WeatherResponse": {
@@ -124,6 +111,8 @@
         "properties": {
           "name":               { "type": "string",  "example": "Teemu" },
           "city":               { "type": "string",  "example": "Turku" },
+          "latitude":           { "type": "number",  "example": 60.4518 },
+          "longitude":          { "type": "number",  "example": 22.2666 },
           "currentTemperature": { "type": "number",  "example": 19.1 },
           "time":               { "type": "string",  "example": "2026-05-18T18:00" },
           "requestId":          { "type": "string",  "example": "6C1299F2B41F3E7-0000000000000010" },
@@ -149,8 +138,8 @@
       "Error": {
         "type": "object",
         "properties": {
-          "error":     { "type": "string",  "example": "Fields 'name' and 'city' are required" },
-          "hint":      { "type": "string",  "example": "POST /users with this name/city first, or unset JSONMOCKDB" },
+          "error":     { "type": "string" },
+          "hint":      { "type": "string" },
           "name":      { "type": "string" },
           "city":      { "type": "string" },
           "requestId": { "type": "string" }

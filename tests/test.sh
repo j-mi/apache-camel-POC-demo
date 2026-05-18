@@ -19,6 +19,35 @@ check() {
   fi
 }
 
+# Assert that $file contains a JSON key like  "<field>":  with a value present.
+has_field() {
+  local label="$1" file="$2" field="$3"
+  if grep -Eq "\"$field\"[[:space:]]*:[[:space:]]*[^,}[:space:]]" "$file"; then
+    check "$label body has '$field'" "yes" "yes"
+  else
+    check "$label body has '$field'" "yes" "no"
+  fi
+}
+
+# Assert that the numeric JSON value for $field in $file is "close to" $expected (within $tolerance).
+# Only meaningful for /process responses where we control the input city.
+near_number() {
+  local label="$1" file="$2" field="$3" expected="$4" tolerance="$5"
+  # grep out: "field": 60.45...  (capture the number)
+  local val
+  val=$(grep -Eo "\"$field\"[[:space:]]*:[[:space:]]*-?[0-9]+\.?[0-9]*" "$file" | grep -Eo '\-?[0-9]+\.?[0-9]*$' | head -1)
+  if [[ -z "$val" ]]; then
+    check "$label '$field' ~= $expected" "ok" "missing"
+    return
+  fi
+  # awk: |val - expected| <= tolerance
+  if awk -v v="$val" -v e="$expected" -v t="$tolerance" 'BEGIN{ d=v-e; if (d<0) d=-d; exit !(d<=t) }'; then
+    check "$label '$field' ~= $expected (got $val)" "ok" "ok"
+  else
+    check "$label '$field' ~= $expected (got $val)" "ok" "out-of-tolerance"
+  fi
+}
+
 echo "Target: $BASE"
 echo "JSONMOCKDB client-side override: ${JSONMOCKDB:-unset}"
 echo
@@ -32,6 +61,16 @@ if [[ "${JSONMOCKDB:-false}" == "true" ]]; then
 else
   check "happy path Turku" "200" "$code"
   echo "      body: $(cat /tmp/r1.json)"
+  # Combined response must include location AND weather
+  has_field "happy path Turku" /tmp/r1.json latitude
+  has_field "happy path Turku" /tmp/r1.json longitude
+  has_field "happy path Turku" /tmp/r1.json currentTemperature
+  has_field "happy path Turku" /tmp/r1.json time
+  has_field "happy path Turku" /tmp/r1.json requestId
+  has_field "happy path Turku" /tmp/r1.json timestamp
+  # Geocoded coords for Turku land around (60.45, 22.27)
+  near_number "happy path Turku" /tmp/r1.json latitude  60.45 0.2
+  near_number "happy path Turku" /tmp/r1.json longitude 22.27 0.2
 fi
 
 code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE/process" \
@@ -48,8 +87,13 @@ check "empty name -> 400" "400" "$code"
 if [[ "${JSONMOCKDB:-false}" != "true" ]]; then
   code=$(curl -s -o /tmp/r4.json -w "%{http_code}" -X POST "$BASE/process" \
     -H "Content-Type: application/json" \
-    -d '{"name":"Pekka","city":"Atlantis"}')
-  check "unknown city -> 200 (fallback)" "200" "$code"
+    -d '{"name":"Ghost","city":"AsdfQwertyXyz"}')
+  check "unknown city -> 200 (Helsinki fallback)" "200" "$code"
+  # Fallback should yield Helsinki coordinates
+  has_field "fallback" /tmp/r4.json latitude
+  has_field "fallback" /tmp/r4.json longitude
+  near_number "fallback" /tmp/r4.json latitude  60.17 0.2
+  near_number "fallback" /tmp/r4.json longitude 24.94 0.2
 fi
 
 # ----- /users tests -----
@@ -75,6 +119,9 @@ if [[ "${JSONMOCKDB:-false}" == "true" ]]; then
     -d '{"name":"Teemu","city":"Turku"}')
   check "JSONMOCKDB on: Teemu/Turku now registered -> 200" "200" "$code"
   echo "      body: $(cat /tmp/g1.json)"
+  has_field "JSONMOCKDB pass" /tmp/g1.json latitude
+  has_field "JSONMOCKDB pass" /tmp/g1.json longitude
+  has_field "JSONMOCKDB pass" /tmp/g1.json currentTemperature
 fi
 
 # ----- platform endpoints -----
