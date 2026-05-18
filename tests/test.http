@@ -1,0 +1,90 @@
+### Happy path — Turku
+POST http://localhost:8080/process
+Content-Type: application/json
+
+{
+  "name": "Teemu",
+  "city": "Turku"
+}
+
+### Happy path — Helsinki
+POST http://localhost:8080/process
+Content-Type: application/json
+
+{
+  "name": "Anna",
+  "city": "Helsinki"
+}
+
+### Unknown city — falls back to Helsinki coordinates with a WARN log
+POST http://localhost:8080/process
+Content-Type: application/json
+
+{
+  "name": "Pekka",
+  "city": "Atlantis"
+}
+
+### Validation — missing city -> 400
+POST http://localhost:8080/process
+Content-Type: application/json
+
+{
+  "name": "Teemu"
+}
+
+### Validation — empty name -> 400
+POST http://localhost:8080/process
+Content-Type: application/json
+
+{
+  "name": "",
+  "city": "Turku"
+}
+
+### Register a user (JSONMOCKDB)
+POST http://localhost:8080/users
+Content-Type: application/json
+
+{
+  "name": "Teemu",
+  "city": "Turku"
+}
+
+### List all registered users
+GET http://localhost:8080/users
+
+### OpenAPI spec
+GET http://localhost:8080/openapi.json
+
+### Health
+GET http://localhost:8080/health
+
+### --- JSONMOCKDB demo flow ---
+### 1) Restart the app with JSONMOCKDB=true (locally: JSONMOCKDB=true camel run process.camel.yaml)
+### 2) Try /process for an unregistered user -> 404 with hint
+POST http://localhost:8080/process
+Content-Type: application/json
+
+{
+  "name": "Ghost",
+  "city": "Helsinki"
+}
+
+### 3) Register them
+POST http://localhost:8080/users
+Content-Type: application/json
+
+{
+  "name": "Ghost",
+  "city": "Helsinki"
+}
+
+### 4) Same /process now succeeds
+POST http://localhost:8080/process
+Content-Type: application/json
+
+{
+  "name": "Ghost",
+  "city": "Helsinki"
+}

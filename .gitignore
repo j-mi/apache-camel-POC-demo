@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Camel JBang / export output
+target/
+.camel-jbang/
+build/
+*.class
+*.jar
+
+# Logs
+*.log
+
+# Local build context (created by scripts/build-image.sh in /tmp, but guard against repo-root use)
+jbang-cache/
+m2-cache/

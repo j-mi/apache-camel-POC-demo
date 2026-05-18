@@ -1,0 +1,674 @@
+- restConfiguration:
+    component: platform-http
+    port: "8080"
+- rest:
+    id: rest6200
+    path: /process
+    post:
+      - id: poste4fa
+        description: Validate input, enrich, fetch current weather, return combined response
+        to: direct:process
+        consumes: application/json
+        produces: application/json
+- rest:
+    id: reste187
+    path: /health
+    get:
+      - id: get45ed
+        to: direct:health
+- rest:
+    id: reste963
+    path: /swagger-ui
+    get:
+      - id: getebdd
+        to: direct:swagger-ui
+        produces: text/html
+- rest:
+    id: rest7854
+    path: /openapi.json
+    get:
+      - id: get79cc
+        to: direct:openapi-spec
+        produces: application/json
+- rest:
+    id: rest3dc5
+    path: /users
+    get:
+      - id: get68da
+        description: List all registered users from the JSONMOCKDB
+        to: direct:list-users
+        produces: application/json
+    post:
+      - id: post6a7a
+        description: Register a (name, city) pair into the JSONMOCKDB
+        to: direct:add-user
+        consumes: application/json
+        produces: application/json
+- route:
+    id: process-route
+    from:
+      id: from6104
+      uri: direct
+      parameters:
+        name: process
+      steps:
+        - log:
+            id: loge815
+            message: "Incoming raw body: ${body}"
+        - unmarshal:
+            id: unmarshale5a4
+            json:
+              id: json2e55
+              library: Jackson
+              useList: false
+        - choice:
+            id: choicebf32
+            when:
+              - id: whenfe00
+                expression:
+                  simple:
+                    id: simplefb91
+                    expression: ${body[name]} == null || ${body[name]} == '' || ${body[city]} == null || ${body[city]} == ''
+                steps:
+                  - log:
+                      id: log99e4
+                      message: Validation failed for body=${body}
+                      loggingLevel: WARN
+                  - setHeader:
+                      id: setHeader6c77
+                      name: CamelHttpResponseCode
+                      expression:
+                        constant:
+                          id: constant73a7
+                          expression: "400"
+                  - setHeader:
+                      id: setHeader60ce
+                      name: Content-Type
+                      expression:
+                        constant:
+                          id: constantfe66
+                          expression: application/json
+                  - setBody:
+                      id: setBody9e08
+                      expression:
+                        constant:
+                          id: constante3c1
+                          expression: "{\"error\":\"Fields 'name' and 'city' are required\"}"
+                  - stop:
+                      id: stop1ca7
+        - setHeader:
+            id: setHeader801c
+            name: requestId
+            expression:
+              simple:
+                id: simple5c7c
+                expression: ${exchangeId}
+        - setHeader:
+            id: setHeader333e
+            name: requestTimestamp
+            expression:
+              simple:
+                id: simple9591
+                expression: ${date:now:yyyy-MM-dd'T'HH:mm:ss.SSSXXX}
+        - setProperty:
+            id: setPropertydf8c
+            name: originalName
+            expression:
+              simple:
+                id: simple6084
+                expression: ${body[name]}
+        - setProperty:
+            id: setPropertycd5f
+            name: originalCity
+            expression:
+              simple:
+                id: simple5847
+                expression: ${body[city]}
+        - log:
+            id: loga953
+            message: requestId=${header.requestId} timestamp=${header.requestTimestamp} name=${exchangeProperty.originalName} city=${exchangeProperty.originalCity}
+        - to:
+            id: toceb7
+            uri: direct
+            parameters:
+              name: jsonmockdb-gate
+        - to:
+            id: to7e5f
+            uri: direct
+            parameters:
+              name: lookup-coords
+        - to:
+            id: to331c
+            uri: direct
+            parameters:
+              name: fetch-weather
+        - to:
+            id: tod618
+            uri: direct
+            parameters:
+              name: build-response
+- route:
+    id: lookup-coords
+    from:
+      id: from3f18
+      uri: direct
+      parameters:
+        name: lookup-coords
+      steps:
+        - choice:
+            id: choice1566
+            when:
+              - id: whenb148
+                expression:
+                  simple:
+                    id: simple2269
+                    expression: ${exchangeProperty.originalCity.toLowerCase()} == 'helsinki'
+                steps:
+                  - setProperty:
+                      id: setPropertydbec
+                      name: latitude
+                      expression:
+                        constant:
+                          id: constant6004
+                          expression: "60.1699"
+                  - setProperty:
+                      id: setPropertydb8e
+                      name: longitude
+                      expression:
+                        constant:
+                          id: constant8847
+                          expression: "24.9384"
+              - id: whenb5b6
+                expression:
+                  simple:
+                    id: simple32b6
+                    expression: ${exchangeProperty.originalCity.toLowerCase()} == 'turku'
+                steps:
+                  - setProperty:
+                      id: setPropertyafea
+                      name: latitude
+                      expression:
+                        constant:
+                          id: constant2574
+                          expression: "60.4518"
+                  - setProperty:
+                      id: setProperty9bf3
+                      name: longitude
+                      expression:
+                        constant:
+                          id: constant24bd
+                          expression: "22.2666"
+              - id: when0e1b
+                expression:
+                  simple:
+                    id: simplec76d
+                    expression: ${exchangeProperty.originalCity.toLowerCase()} == 'tampere'
+                steps:
+                  - setProperty:
+                      id: setPropertyeaff
+                      name: latitude
+                      expression:
+                        constant:
+                          id: constant8394
+                          expression: "61.4978"
+                  - setProperty:
+                      id: setProperty9437
+                      name: longitude
+                      expression:
+                        constant:
+                          id: constantfe0c
+                          expression: "23.7610"
+              - id: when9192
+                expression:
+                  simple:
+                    id: simple9d26
+                    expression: ${exchangeProperty.originalCity.toLowerCase()} == 'oulu'
+                steps:
+                  - setProperty:
+                      id: setPropertyf166
+                      name: latitude
+                      expression:
+                        constant:
+                          id: constant9767
+                          expression: "65.0121"
+                  - setProperty:
+                      id: setProperty11e9
+                      name: longitude
+                      expression:
+                        constant:
+                          id: constante7a2
+                          expression: "25.4651"
+              - id: when4a2d
+                expression:
+                  simple:
+                    id: simple561e
+                    expression: ${exchangeProperty.originalCity.toLowerCase()} == 'espoo'
+                steps:
+                  - setProperty:
+                      id: setProperty5046
+                      name: latitude
+                      expression:
+                        constant:
+                          id: constanta07f
+                          expression: "60.2055"
+                  - setProperty:
+                      id: setProperty4936
+                      name: longitude
+                      expression:
+                        constant:
+                          id: constanta9ed
+                          expression: "24.6559"
+              - id: when893e
+                expression:
+                  simple:
+                    id: simple101a
+                    expression: ${exchangeProperty.originalCity.toLowerCase()} == 'vantaa'
+                steps:
+                  - setProperty:
+                      id: setProperty000b
+                      name: latitude
+                      expression:
+                        constant:
+                          id: constant4266
+                          expression: "60.2934"
+                  - setProperty:
+                      id: setProperty11a2
+                      name: longitude
+                      expression:
+                        constant:
+                          id: constant90a6
+                          expression: "25.0378"
+            otherwise:
+              id: otherwise79ed
+              steps:
+                - log:
+                    id: logb9a0
+                    message: Unknown city '${exchangeProperty.originalCity}', defaulting to Helsinki coordinates
+                    loggingLevel: WARN
+                - setProperty:
+                    id: setProperty4cfc
+                    name: latitude
+                    expression:
+                      constant:
+                        id: constantddfc
+                        expression: "60.1699"
+                - setProperty:
+                    id: setProperty2cf9
+                    name: longitude
+                    expression:
+                      constant:
+                        id: constantc0a1
+                        expression: "24.9384"
+- route:
+    id: fetch-weather
+    from:
+      id: froma0fe
+      uri: direct
+      parameters:
+        name: fetch-weather
+      steps:
+        - removeHeaders:
+            id: removeHeadersc746
+            pattern: CamelHttp*
+        - setHeader:
+            id: setHeader7f8a
+            name: CamelHttpMethod
+            expression:
+              constant:
+                id: constant4839
+                expression: GET
+        - setBody:
+            id: setBodya82b
+            expression:
+              constant:
+                id: constant11e6
+        - toD:
+            id: toDa8e8
+            uri: >-
+              https://api.open-meteo.com/v1/forecast?latitude=${exchangeProperty.latitude}&longitude=${exchangeProperty.longitude}&current_weather=true&bridgeEndpoint=true
+        - unmarshal:
+            id: unmarshal1cb9
+            json:
+              id: jsonb132
+              library: Jackson
+              useList: false
+        - setProperty:
+            id: setProperty2104
+            name: weatherTemp
+            expression:
+              simple:
+                id: simplef52d
+                expression: ${body[current_weather][temperature]}
+        - setProperty:
+            id: setProperty8d0c
+            name: weatherTime
+            expression:
+              simple:
+                id: simple31c2
+                expression: ${body[current_weather][time]}
+        - log:
+            id: log9b7e
+            message: "open-meteo response: temp=${exchangeProperty.weatherTemp} time=${exchangeProperty.weatherTime}"
+- route:
+    id: build-response
+    from:
+      id: from43b0
+      uri: direct
+      parameters:
+        name: build-response
+      steps:
+        - setHeader:
+            id: setHeader9204
+            name: Content-Type
+            expression:
+              constant:
+                id: constantb47a
+                expression: application/json
+        - setBody:
+            id: setBodye7d6
+            expression:
+              simple:
+                id: simplec182
+                expression: |
+                  {
+                    "name": "${exchangeProperty.originalName}",
+                    "city": "${exchangeProperty.originalCity}",
+                    "currentTemperature": ${exchangeProperty.weatherTemp},
+                    "time": "${exchangeProperty.weatherTime}",
+                    "requestId": "${header.requestId}",
+                    "timestamp": "${header.requestTimestamp}"
+                  }
+- route:
+    id: health-route
+    from:
+      id: from3cf4
+      uri: direct
+      parameters:
+        name: health
+      steps:
+        - setHeader:
+            id: setHeader5575
+            name: Content-Type
+            expression:
+              constant:
+                id: constant870c
+                expression: application/json
+        - setBody:
+            id: setBodyd1a8
+            expression:
+              constant:
+                id: constantfca3
+                expression: "{\"status\":\"UP\"}"
+- route:
+    id: openapi-spec-route
+    from:
+      id: from0d61
+      uri: direct
+      parameters:
+        name: openapi-spec
+      steps:
+        - setHeader:
+            id: setHeader7c1d
+            name: Content-Type
+            expression:
+              constant:
+                id: constant52d8
+                expression: application/json
+        - setBody:
+            id: setBodybf17
+            expression:
+              simple:
+                id: simple6aa4
+                expression: resource:file:openapi.json
+- route:
+    id: swagger-ui-route
+    from:
+      id: from7c1d
+      uri: direct
+      parameters:
+        name: swagger-ui
+      steps:
+        - setHeader:
+            id: setHeaderb882
+            name: Content-Type
+            expression:
+              constant:
+                id: constant0f93
+                expression: text/html
+        - setBody:
+            id: setBody9250
+            expression:
+              constant:
+                id: constant64f2
+                expression: |-
+                  <!DOCTYPE html>
+                  <html lang="en">
+                  <head>
+                    <meta charset="UTF-8" />
+                    <title>Camel Weather POC — Swagger UI</title>
+                    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+                  </head>
+                  <body>
+                    <div id="swagger-ui"></div>
+                    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+                    <script>
+                      window.onload = function () {
+                        SwaggerUIBundle({
+                          url: "/openapi.json",
+                          dom_id: "#swagger-ui",
+                          deepLinking: true,
+                          presets: [
+                            SwaggerUIBundle.presets.apis,
+                            SwaggerUIBundle.SwaggerUIStandalonePreset,
+                          ],
+                        });
+                      };
+                    </script>
+                  </body>
+                  </html>
+- route:
+    id: jsonmockdb-gate
+    from:
+      id: from0fcf
+      uri: direct
+      parameters:
+        name: jsonmockdb-gate
+      steps:
+        - choice:
+            id: choice7ddb
+            when:
+              - id: when2a03
+                expression:
+                  simple:
+                    id: simple19cf
+                    expression: "'{{jsonmockdb:false}}' == 'true'"
+                steps:
+                  - setProperty:
+                      id: setPropertyefcd
+                      name: expectedLine
+                      expression:
+                        simple:
+                          id: simple5012
+                          expression: "{\"name\":\"${exchangeProperty.originalName}\",\"city\":\"${exchangeProperty.originalCity}\"}"
+                  - setBody:
+                      id: setBodyab5b
+                      expression:
+                        constant:
+                          id: constant4c6d
+                  - pollEnrich:
+                      id: pollEnrich02e4
+                      expression:
+                        constant:
+                          id: constant142b
+                          expression: file:data?fileName=users.jsonl&noop=true&idempotent=false
+                      timeout: 500
+                  - choice:
+                      id: choicef664
+                      when:
+                        - id: whenf744
+                          expression:
+                            simple:
+                              id: simple2668
+                              expression: ${bodyAs(String)} contains ${exchangeProperty.expectedLine}
+                          steps:
+                            - log:
+                                id: logc358
+                                message: "JSONMOCKDB: hit for ${exchangeProperty.originalName}/${exchangeProperty.originalCity}"
+                      otherwise:
+                        id: otherwiseb5aa
+                        steps:
+                          - log:
+                              id: logd382
+                              message: "JSONMOCKDB: miss for ${exchangeProperty.originalName}/${exchangeProperty.originalCity} — returning 404"
+                              loggingLevel: WARN
+                          - setHeader:
+                              id: setHeader94fd
+                              name: CamelHttpResponseCode
+                              expression:
+                                constant:
+                                  id: constantb974
+                                  expression: "404"
+                          - setHeader:
+                              id: setHeader5657
+                              name: Content-Type
+                              expression:
+                                constant:
+                                  id: constantfd4c
+                                  expression: application/json
+                          - setBody:
+                              id: setBodyb4e5
+                              expression:
+                                simple:
+                                  id: simpleb9f0
+                                  expression: |
+                                    {
+                                      "error": "User not registered in mock DB",
+                                      "name": "${exchangeProperty.originalName}",
+                                      "city": "${exchangeProperty.originalCity}",
+                                      "hint": "POST /users with this name/city first, or unset JSONMOCKDB",
+                                      "requestId": "${header.requestId}"
+                                    }
+                          - stop:
+                              id: stopf863
+- route:
+    id: add-user-route
+    from:
+      id: froma5d8
+      uri: direct
+      parameters:
+        name: add-user
+      steps:
+        - unmarshal:
+            id: unmarshale4ad
+            json:
+              id: jsona8f7
+              library: Jackson
+              useList: false
+        - choice:
+            id: choice8192
+            when:
+              - id: whenef2e
+                expression:
+                  simple:
+                    id: simpled3f1
+                    expression: ${body[name]} == null || ${body[name]} == '' || ${body[city]} == null || ${body[city]} == ''
+                steps:
+                  - setHeader:
+                      id: setHeader1d95
+                      name: CamelHttpResponseCode
+                      expression:
+                        constant:
+                          id: constant4726
+                          expression: "400"
+                  - setHeader:
+                      id: setHeadere44e
+                      name: Content-Type
+                      expression:
+                        constant:
+                          id: constant0bb2
+                          expression: application/json
+                  - setBody:
+                      id: setBody00d3
+                      expression:
+                        constant:
+                          id: constant55cd
+                          expression: "{\"error\":\"Fields 'name' and 'city' are required\"}"
+                  - stop:
+                      id: stopb937
+        - setProperty:
+            id: setProperty6559
+            name: userName
+            expression:
+              simple:
+                id: simple3005
+                expression: ${body[name]}
+        - setProperty:
+            id: setPropertya39b
+            name: userCity
+            expression:
+              simple:
+                id: simplea4a5
+                expression: ${body[city]}
+        - log:
+            id: logb6cb
+            message: "JSONMOCKDB: saving user=${exchangeProperty.userName} city=${exchangeProperty.userCity}"
+        - setBody:
+            id: setBodya7f0
+            expression:
+              simple:
+                id: simplec7a2
+                expression: "{\"name\":\"${exchangeProperty.userName}\",\"city\":\"${exchangeProperty.userCity}\"}\\n"
+        - to:
+            id: todad5
+            uri: file
+            parameters:
+              directoryName: data?fileName=users.jsonl&fileExist=Append
+        - setHeader:
+            id: setHeadera63e
+            name: Content-Type
+            expression:
+              constant:
+                id: constant8f38
+                expression: application/json
+        - setBody:
+            id: setBodyee72
+            expression:
+              simple:
+                id: simpleda01
+                expression: "{\"status\":\"saved\",\"name\":\"${exchangeProperty.userName}\",\"city\":\"${exchangeProperty.userCity}\"}"
+- route:
+    id: list-users-route
+    from:
+      id: from246e
+      uri: direct
+      parameters:
+        name: list-users
+      steps:
+        - setBody:
+            id: setBody4706
+            expression:
+              constant:
+                id: constant71df
+        - pollEnrich:
+            id: pollEnrichfd48
+            expression:
+              constant:
+                id: constant9693
+                expression: file:data?fileName=users.jsonl&noop=true&idempotent=false
+            timeout: 500
+        - convertBodyTo:
+            id: convertBodyTo125c
+            type: java.lang.String
+        - setBody:
+            id: setBodya514
+            expression:
+              simple:
+                id: simple33a6
+                expression: "[${bodyAs(String).trim().replaceAll('\\n', ',')}]"
+        - setHeader:
+            id: setHeaderfa8f
+            name: Content-Type
+            expression:
+              constant:
+                id: constant4070
+                expression: application/json
